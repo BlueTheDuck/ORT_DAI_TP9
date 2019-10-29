@@ -10,6 +10,8 @@ import org.cocos2d.nodes.Sprite;
 import org.cocos2d.opengl.CCGLSurfaceView;
 import org.cocos2d.types.CCSize;
 
+import java.util.ArrayList;
+
 public class Game {
     CCGLSurfaceView _gameView;
     CCSize _screen;
@@ -43,17 +45,27 @@ public class Game {
 }
 
 class MainLayer extends Layer {
+    ArrayList<Sprite> bgs = new ArrayList<>();
      public MainLayer(CCSize screen) {
-         Sprite bg = Sprite.sprite("fondo.png");
-         bg.setPosition(screen.getWidth() / 2,screen.getHeight()/2);
+         for(int i = 0;i<3;i++) {
+             Sprite bg = Sprite.sprite("fondo.png");
+             bg.setPosition(screen.getWidth() / 2,screen.getHeight()/2 + screen.getHeight() * i);
+             bgs.add(bg);
 
-         float fWidth, fHeight;
-         fWidth=screen.getWidth()/bg.getWidth();
-         fHeight=screen.getHeight()/bg.getHeight();
-         Log.d("MainLayer",String.format("sx %s sy %s",fWidth,fHeight));
+             float fWidth, fHeight;
+             fWidth=screen.getWidth()/bg.getWidth();
+             fHeight=screen.getHeight()/bg.getHeight();
+             Log.d("MainLayer",String.format("sx %s sy %s",fWidth,fHeight));
 
-         bg.runAction(ScaleBy.action(0.1f,fWidth,fHeight));
-         super.addChild(bg);
+             bg.runAction(ScaleBy.action(0.1f,fWidth,fHeight));
+             super.addChild(bg);
+         }
+         super.schedule("move",1.0f);
+     }
+     public void move() {
+         for(int i = 0;i<3;i++) {
+             bgs.get(i).setPosition(bgs.get(i).getPositionX(),bgs.get(i).getPositionY() - 10);
+         }
      }
 }
 class PlayerLayer extends Layer {
