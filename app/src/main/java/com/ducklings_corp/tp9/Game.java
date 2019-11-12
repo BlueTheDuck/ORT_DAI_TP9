@@ -17,6 +17,7 @@ import org.cocos2d.nodes.Sprite;
 import org.cocos2d.opengl.CCGLSurfaceView;
 import org.cocos2d.types.CCSize;
 
+import java.nio.charset.CoderMalfunctionError;
 import java.util.ArrayList;
 
 public class Game {
@@ -50,7 +51,6 @@ public class Game {
     }
 
 
-
 }
 
 class MainLayer extends Layer {
@@ -79,7 +79,7 @@ class MainLayer extends Layer {
         float fWidth, fHeight;
         fWidth = _screen.getWidth() / bg.getWidth();
         fHeight = _screen.getHeight() / bg.getHeight();
-        Log.d("MainLayer", String.format("sx %s sy %s", fWidth, fHeight));
+        Log.d("createBg", String.format("sx %s sy %s", fWidth, fHeight));
         bg.setScaleX(fWidth);
         bg.setScaleY(fHeight);
 
@@ -98,8 +98,14 @@ class EntitiesLayer extends Layer {
 
     final int ENEMY_PY = 40;
     final int PLAYER_PY = 37;
+    final int BULLET_PY = 25;
+    float shooting_speed = 0.8f;
 
     public ArrayList<Sprite> _enemies = new ArrayList();
+    public ArrayList<Sprite> _enemy_bullets = new ArrayList<>();
+    public ArrayList<Sprite> _player_bullets = new ArrayList<>();
+
+    private boolean _touching = false;
 
     public EntitiesLayer(CCSize screen) {
         _screen = screen;
@@ -109,21 +115,39 @@ class EntitiesLayer extends Layer {
         super.addChild(_player);
         setIsTouchEnabled(true);
 
-        super.schedule("spawnSmall",3);
-        super.schedule("detectCol",0.25f);
+        super.schedule("spawnSmall", 3);
+        super.schedule("detectColWithPlayer", 0.01f);
+        super.schedule("enemyShoot", shooting_speed);
+        super.schedule("playerShoot", 0.5f);
     }
-    public void detectCol(float dt) {
-        for(CocosNode enemy: _enemies) {
-            float dist = pythagoras(enemy,_player);
-            if(dist < ENEMY_PY + PLAYER_PY) {
-                Log.d("EntitiesLayer", "LOL");
+
+    public void detectColWithPlayer(float dt) {
+        boolean has_collided = false;
+        for (CocosNode enemy : _enemies) {
+            if (detectColWith(_player, enemy, ENEMY_PY + PLAYER_PY)) {
+                has_collided = true;
             }
         }
+        for (CocosNode bullet : _enemy_bullets) {
+            if (detectColWith(_player, bullet, BULLET_PY + PLAYER_PY)) {
+                has_collided = true;
+            }
+        }
+        if(has_collided){
+            Log.d("detectColWithPlayer", "Player died");
+        }
     }
-    public float pythagoras(CocosNode a,CocosNode b) {
+
+    public boolean detectColWith(CocosNode a, CocosNode b, float req_dist) {
+        float calc_dist = pythagoras(a, b);
+        // Log.d("detectColWith", String.format("%s %s",calc_dist,req_dist));
+        return calc_dist < req_dist;
+    }
+
+    public float pythagoras(CocosNode a, CocosNode b) {
         float dx = Math.abs(a.getPositionX() - b.getPositionX());
         float dy = Math.abs(a.getPositionY() - b.getPositionY());
-        return (float)Math.sqrt(dx*dx + dy*dy);
+        return (float) Math.sqrt(dx * dx + dy * dy);
     }
 
     public boolean intersectionWithSprites(Sprite Sprite1, Sprite Sprite2) {
@@ -132,11 +156,62 @@ class EntitiesLayer extends Layer {
         return intersection;
     }
 
+    public void enemyShoot(float dt) {
+        Sprite enenmy;
+        do {
+            double enemy_id = Math.random() * _enemies.size();
+            enenmy = _enemies.get((int) enemy_id);
+            Log.d("enemyShoot", String.format("%s / %s", enemy_id, _enemies.size()));
+
+        } while (enenmy.getPositionY() > _screen.height - 15);
+        shoot(enenmy, false);
+
+    }
+
+    public void playerShoot(float dt) {
+        if (_touching) {
+            shoot(_player, true);
+        }
+    }
+
+    public void shoot(Sprite plane, boolean is_player) {
+        Sprite sprite = Sprite.sprite("bullet.png");
+        int dir;
+        if (is_player) {
+            dir = -1;
+            _player_bullets.add(sprite);
+        } else {
+            dir = 1;
+            _enemy_bullets.add(sprite);
+        }
+        float x = plane.getPositionX();
+        float y = plane.getPositionY();
+        sprite.setPosition(x, y);
+        IntervalAction action = Sequence.actions(
+                MoveBy.action(4, 0, -_screen.height * dir)
+        );
+        sprite.setScale(2);
+        sprite.runAction(action);
+        super.addChild(sprite);
+    }
+
+    @Override
+    public boolean ccTouchesBegan(MotionEvent event) {
+        _touching = true;
+        return super.ccTouchesBegan(event);
+    }
+
     @Override
     public boolean ccTouchesMoved(MotionEvent event) {
         _player.setPosition(event.getX(), this.getHeight() - event.getY());
 
         return super.ccTouchesMoved(event);
+    }
+
+    @Override
+    public boolean ccTouchesEnded(MotionEvent event) {
+        _touching = false;
+        return super.ccTouchesEnded(event);
     }
 
     public void spawnSmall(float dt) {
