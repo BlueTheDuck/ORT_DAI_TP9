@@ -16,6 +16,7 @@ import org.cocos2d.nodes.Scene;
 import org.cocos2d.nodes.Sprite;
 import org.cocos2d.opengl.CCGLSurfaceView;
 import org.cocos2d.types.CCSize;
+import org.cocos2d.nodes.Label;
 
 import java.nio.charset.CoderMalfunctionError;
 import java.util.ArrayList;
@@ -31,14 +32,21 @@ public class Game {
         Log.d("Game", String.format("WxH %sx%s", Director.sharedDirector().displaySize().getWidth(), Director.sharedDirector().displaySize().getHeight()));
     }
 
-    void startGame() {
+    void init() {
         Director.sharedDirector().attachInView(this._gameView);
-        Scene scene = startScene();
+        Scene scene = startMenu();
         Director.sharedDirector().runWithScene(scene);
 
     }
 
-    private Scene startScene() {
+    private Scene startMenu() {
+        Scene returnScene = Scene.node();
+        returnScene.addChild(new MenuLayer(_screen));
+
+        return returnScene;
+    }
+
+    private Scene startGame() {
         Scene returnScene;
         returnScene = Scene.node();
 
@@ -49,8 +57,6 @@ public class Game {
 
         return returnScene;
     }
-
-
 }
 
 class MainLayer extends Layer {
@@ -92,6 +98,26 @@ class MainLayer extends Layer {
     }
 }
 
+class MenuLayer extends Layer {
+    CCSize _screen;
+    MenuLayer(CCSize screen) {
+        this._screen = screen;
+        Sprite title = Sprite.sprite("1943.png");
+        Sprite start = Sprite.sprite("start.png");
+        Sprite bg = Sprite.sprite("bakrgaund.jpg");
+        title.setPosition(_screen.width / 2f,_screen.height / 4f * 3f);
+        title.setScale(2.5f);
+        start.setPosition(_screen.width / 2f,_screen.height / 4f);
+        start.setScale(1.5f);
+        bg.setScaleY(_screen.getHeight() / bg.getHeight());
+        bg.setScaleX(_screen.getWidth() / bg.getWidth());
+        bg.setPosition(_screen.width / 2f,_screen.height / 2f);
+        super.addChild(bg);
+        super.addChild(title);
+        super.addChild(start);
+    }
+}
+
 class EntitiesLayer extends Layer {
     Sprite _player;
     CCSize _screen;
@@ -99,7 +125,7 @@ class EntitiesLayer extends Layer {
     final int ENEMY_PY = 40;
     final int PLAYER_PY = 37;
     final int BULLET_PY = 25;
-    float shooting_speed = 0.8f;
+    float shooting_speed = 0.6f;
 
     public ArrayList<Sprite> _enemies = new ArrayList();
     public ArrayList<Sprite> _enemy_bullets = new ArrayList<>();
@@ -157,15 +183,13 @@ class EntitiesLayer extends Layer {
     }
 
     public void enemyShoot(float dt) {
-        Sprite enenmy;
-        do {
-            double enemy_id = Math.random() * _enemies.size();
-            enenmy = _enemies.get((int) enemy_id);
-            Log.d("enemyShoot", String.format("%s / %s", enemy_id, _enemies.size()));
-
-        } while (enenmy.getPositionY() > _screen.height - 15);
-        shoot(enenmy, false);
-
+        for(Sprite enemy: _enemies) {
+            if(enemy.getPositionY() > 15) {
+                if (Math.random() > 0.5) {
+                    shoot(enemy,false);
+                }
+            }
+        }
     }
 
     public void playerShoot(float dt) {
@@ -217,7 +241,8 @@ class EntitiesLayer extends Layer {
     public void spawnSmall(float dt) {
         Sprite sprite = Sprite.sprite("enemy.png");
         sprite.setPosition((float) Math.random() * _screen.getWidth(), _screen.getHeight());
-        sprite.runAction(ScaleBy.action(0.1f, 3, 3));
+        sprite.setScale(3);
+        //sprite.runAction(ScaleBy.action(0.1f, 3, 3));
 
         float xtarget_1, xtarget_2;
         if (sprite.getPositionX() > _screen.getWidth() / 2) {

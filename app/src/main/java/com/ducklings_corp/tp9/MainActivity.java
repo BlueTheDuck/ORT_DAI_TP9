@@ -28,6 +28,6 @@ public class MainActivity extends Activity {
         super.onStart();
 
         game = new Game(mainView);
-        game.startGame();
+        game.init();
     }
 }
