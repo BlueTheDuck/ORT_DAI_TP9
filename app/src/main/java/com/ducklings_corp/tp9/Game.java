@@ -14,9 +14,11 @@ import org.cocos2d.menus.Menu;
 import org.cocos2d.menus.MenuItemImage;
 import org.cocos2d.nodes.CocosNode;
 import org.cocos2d.nodes.Director;
+import org.cocos2d.nodes.Label;
 import org.cocos2d.nodes.Scene;
 import org.cocos2d.nodes.Sprite;
 import org.cocos2d.opengl.CCGLSurfaceView;
+import org.cocos2d.types.CCColor3B;
 import org.cocos2d.types.CCSize;
 
 import java.util.ArrayList;
@@ -24,6 +26,7 @@ import java.util.ArrayList;
 public class Game {
     CCGLSurfaceView _gameView;
     CCSize _screen;
+    int score = 0;
 
     public Game(CCGLSurfaceView view) {
         Director.sharedDirector().attachInView(view);
@@ -44,13 +47,13 @@ public class Game {
     }
 
     public void startGame() {
+        score = 0;
         Scene returnScene = Scene.node();
 
-        MainLayer mainLayer = new MainLayer(_screen);
+        MainLayer mainLayer = new MainLayer(_screen,this);
         returnScene.addChild(mainLayer, -1);
         EntitiesLayer entitiesLayer = new EntitiesLayer(_screen,this);
         returnScene.addChild(entitiesLayer, 1);
-
         Director.sharedDirector().replaceScene(returnScene);
     }
 
@@ -91,25 +94,33 @@ class MenuLayer extends Layer {
             super.addChild(menu);
             super.addChild(bg);
             super.addChild(title);
+
         } else if (type==Type.END){
             Sprite title = Sprite.sprite("1943.png");
             Sprite bg = Sprite.sprite("background.png");
             Sprite go = Sprite.sprite("game_over.png");
-            MenuItemImage startButton = MenuItemImage.item("start.png", "start_2.png", this, "startGame");
+            MenuItemImage startButton = MenuItemImage.item("start_again.png", "start_again_2.png", this, "startGame");
             Menu menu = Menu.menu(startButton);
+            Label score = Label.label("Puntuación: "+_game.score,"MS Comic Sans",70);
 
 
-            title.setPosition(_screen.width / 2f, _screen.height / 4f * 3f);
+            title.setPosition(_screen.width / 2f, _screen.height / 5f * 4f);
             title.setScale(2.5f);
             bg.setScaleY(_screen.getHeight() / bg.getHeight());
             bg.setScaleX(_screen.getWidth() / bg.getWidth());
             bg.setPosition(_screen.width / 2f, _screen.height / 2f);
             bg.setZOrder(-100);
+            go.setPosition(_screen.width / 2f, _screen.height / 2f);
+            go.setScale(2f);
+            startButton.setPosition(0, -_screen.height/5f*2f);
+            score.setPosition(_screen.width / 2f, _screen.height/4f);
+            score.setColor(new CCColor3B(0,0,0));
 
             super.addChild(title);
             super.addChild(bg);
             super.addChild(go);
             super.addChild(menu);
+            super.addChild(score);
         }
 
     }
@@ -123,12 +134,19 @@ class MenuLayer extends Layer {
 class MainLayer extends Layer {
     final float SCROLL_SPEED = 15.0f;
     CCSize _screen;
+    Game _game;
+    Label _score_label;
 
-    public MainLayer(CCSize screen) {
+    public MainLayer(CCSize screen,Game game) {
+        String score_str = "Score: ";
         _screen = screen;
+        _game = game;
+        _score_label = Label.label(score_str,"Droid Sans Mono",50);
         createBg(0);
         createBg(1);
+        _score_label.setPosition(score_str.length()*15f,_screen.height-50f);
         super.schedule("backgroundGen", SCROLL_SPEED / 2);
+        super.addChild(_score_label);
     }
 
     public void backgroundGen(float dt) {
@@ -167,7 +185,7 @@ class EntitiesLayer extends Layer {
     final int ENEMY_PY = 40;
     final int PLAYER_PY = 37;
     final int BULLET_PY = 25;
-    float shooting_speed = 0.6f;
+    float shooting_speed = 0.6f;//0-100: 0.6 / 100-200: 0.4 / 200-...: 0.2
 
     public ArrayList<Sprite> _enemies = new ArrayList();
     public ArrayList<Sprite> _enemy_bullets = new ArrayList<>();
@@ -205,6 +223,12 @@ class EntitiesLayer extends Layer {
             }
         }
         if (has_collided) {
+            _game.score += 10;
+            if(_game.score > 200) {
+                shooting_speed = 0.2f;
+            }else if(_game.score > 100) {
+                shooting_speed = 0.4f;
+            }
             Log.d("detectCol", "Enemy died");
         }
     }
