@@ -10,15 +10,15 @@ import org.cocos2d.actions.interval.MoveTo;
 import org.cocos2d.actions.interval.ScaleBy;
 import org.cocos2d.actions.interval.Sequence;
 import org.cocos2d.layers.Layer;
+import org.cocos2d.menus.Menu;
+import org.cocos2d.menus.MenuItemImage;
 import org.cocos2d.nodes.CocosNode;
 import org.cocos2d.nodes.Director;
 import org.cocos2d.nodes.Scene;
 import org.cocos2d.nodes.Sprite;
 import org.cocos2d.opengl.CCGLSurfaceView;
 import org.cocos2d.types.CCSize;
-import org.cocos2d.nodes.Label;
 
-import java.nio.charset.CoderMalfunctionError;
 import java.util.ArrayList;
 
 public class Game {
@@ -33,29 +33,90 @@ public class Game {
     }
 
     void init() {
-        Director.sharedDirector().attachInView(this._gameView);
-        Scene scene = startMenu();
-        Director.sharedDirector().runWithScene(scene);
-
+        Director.sharedDirector().attachInView(_gameView);
+        startMenu(MenuLayer.Type.START);
     }
 
-    private Scene startMenu() {
+    private void startMenu(MenuLayer.Type type) {
         Scene returnScene = Scene.node();
-        returnScene.addChild(new MenuLayer(_screen));
-
-        return returnScene;
+        returnScene.addChild(new MenuLayer(_screen, this,type));
+        Director.sharedDirector().runWithScene(returnScene);
     }
 
-    private Scene startGame() {
-        Scene returnScene;
-        returnScene = Scene.node();
+    public void startGame() {
+        Scene returnScene = Scene.node();
 
         MainLayer mainLayer = new MainLayer(_screen);
         returnScene.addChild(mainLayer, -1);
-        EntitiesLayer entitiesLayer = new EntitiesLayer(_screen);
+        EntitiesLayer entitiesLayer = new EntitiesLayer(_screen,this);
         returnScene.addChild(entitiesLayer, 1);
 
-        return returnScene;
+        Director.sharedDirector().replaceScene(returnScene);
+    }
+
+    public void endGame() {
+        startMenu(MenuLayer.Type.END);
+    }
+}
+
+class MenuLayer extends Layer {
+    enum Type {
+        START,
+        END,
+    }
+
+    CCSize _screen;
+    Game _game;
+
+    MenuLayer(CCSize screen, Game game,Type type) {
+        _screen = screen;
+        _game = game;
+
+        if (type ==Type.START){
+            Sprite title = Sprite.sprite("1943.png");
+            Sprite bg = Sprite.sprite("bakrgaund.jpg");
+            MenuItemImage startButton = MenuItemImage.item("start.png", "start_2.png", this, "startGame");
+            Menu menu = Menu.menu(startButton);
+
+            title.setPosition(_screen.width / 2f, _screen.height / 4f * 3f);
+            title.setScale(2.5f);
+            bg.setScaleY(_screen.getHeight() / bg.getHeight());
+            bg.setScaleX(_screen.getWidth() / bg.getWidth());
+            bg.setPosition(_screen.width / 2f, _screen.height / 2f);
+            bg.setZOrder(-100);
+            startButton.setPosition(_screen.width / 2f, _screen.height / 4f);
+            startButton.setScale(1.5f);
+            menu.setPosition(0, 0);
+
+            super.addChild(menu);
+            super.addChild(bg);
+            super.addChild(title);
+        } else if (type==Type.END){
+            Sprite title = Sprite.sprite("1943.png");
+            Sprite bg = Sprite.sprite("background.png");
+            Sprite go = Sprite.sprite("game_over.png");
+            MenuItemImage startButton = MenuItemImage.item("start.png", "start_2.png", this, "startGame");
+            Menu menu = Menu.menu(startButton);
+
+
+            title.setPosition(_screen.width / 2f, _screen.height / 4f * 3f);
+            title.setScale(2.5f);
+            bg.setScaleY(_screen.getHeight() / bg.getHeight());
+            bg.setScaleX(_screen.getWidth() / bg.getWidth());
+            bg.setPosition(_screen.width / 2f, _screen.height / 2f);
+            bg.setZOrder(-100);
+
+            super.addChild(title);
+            super.addChild(bg);
+            super.addChild(go);
+            super.addChild(menu);
+        }
+
+    }
+
+    // On click button
+    public void startGame() {
+        _game.startGame();
     }
 }
 
@@ -98,29 +159,10 @@ class MainLayer extends Layer {
     }
 }
 
-class MenuLayer extends Layer {
-    CCSize _screen;
-    MenuLayer(CCSize screen) {
-        this._screen = screen;
-        Sprite title = Sprite.sprite("1943.png");
-        Sprite start = Sprite.sprite("start.png");
-        Sprite bg = Sprite.sprite("bakrgaund.jpg");
-        title.setPosition(_screen.width / 2f,_screen.height / 4f * 3f);
-        title.setScale(2.5f);
-        start.setPosition(_screen.width / 2f,_screen.height / 4f);
-        start.setScale(1.5f);
-        bg.setScaleY(_screen.getHeight() / bg.getHeight());
-        bg.setScaleX(_screen.getWidth() / bg.getWidth());
-        bg.setPosition(_screen.width / 2f,_screen.height / 2f);
-        super.addChild(bg);
-        super.addChild(title);
-        super.addChild(start);
-    }
-}
-
 class EntitiesLayer extends Layer {
     Sprite _player;
     CCSize _screen;
+    Game _game;
 
     final int ENEMY_PY = 40;
     final int PLAYER_PY = 37;
@@ -133,8 +175,9 @@ class EntitiesLayer extends Layer {
 
     private boolean _touching = false;
 
-    public EntitiesLayer(CCSize screen) {
+    public EntitiesLayer(CCSize screen,Game game) {
         _screen = screen;
+        _game = game;
         _player = Sprite.sprite("player.png");
         _player.setPosition(screen.getWidth() / 2, screen.getHeight() / 2);
         _player.runAction(ScaleBy.action(0.1f, 3, 3));
@@ -142,12 +185,30 @@ class EntitiesLayer extends Layer {
         setIsTouchEnabled(true);
 
         super.schedule("spawnSmall", 3);
-        super.schedule("detectColWithPlayer", 0.01f);
+        super.schedule("detectPlayerCol", 0.001f);
+        super.schedule("detectEnemyCol", 0.001f);
         super.schedule("enemyShoot", shooting_speed);
         super.schedule("playerShoot", 0.5f);
     }
 
-    public void detectColWithPlayer(float dt) {
+
+    // Collision detection
+    public void detectEnemyCol(float dt) {
+        boolean has_collided = false;
+        for (CocosNode bullet : _player_bullets) {
+            for (CocosNode enemy : _enemies) {
+                if (detectColWith(enemy, bullet, BULLET_PY + ENEMY_PY)) {
+                    has_collided = true;
+                    super.removeChild(enemy,true);
+                    _enemies.remove(enemy);
+                }
+            }
+        }
+        if (has_collided) {
+            Log.d("detectCol", "Enemy died");
+        }
+    }
+    public void detectPlayerCol(float dt) {
         boolean has_collided = false;
         for (CocosNode enemy : _enemies) {
             if (detectColWith(_player, enemy, ENEMY_PY + PLAYER_PY)) {
@@ -159,11 +220,16 @@ class EntitiesLayer extends Layer {
                 has_collided = true;
             }
         }
-        if(has_collided){
-            Log.d("detectColWithPlayer", "Player died");
+        if (has_collided) {
+            Log.d("detectCol", "Player died");
+            super.unschedule("spawnSmall");
+            super.unschedule("detectPlayerCol");
+            super.unschedule("detectEnemyCol");
+            super.unschedule("enemyShoot");
+            super.unschedule("playerShoot");
+            _game.endGame();
         }
     }
-
     public boolean detectColWith(CocosNode a, CocosNode b, float req_dist) {
         float calc_dist = pythagoras(a, b);
         // Log.d("detectColWith", String.format("%s %s",calc_dist,req_dist));
@@ -176,28 +242,21 @@ class EntitiesLayer extends Layer {
         return (float) Math.sqrt(dx * dx + dy * dy);
     }
 
-    public boolean intersectionWithSprites(Sprite Sprite1, Sprite Sprite2) {
-        Boolean intersection = false;
-
-        return intersection;
-    }
-
+    // Firing
     public void enemyShoot(float dt) {
-        for(Sprite enemy: _enemies) {
-            if(enemy.getPositionY() > 15) {
+        for (Sprite enemy : _enemies) {
+            if (enemy.getPositionY() > 15) {
                 if (Math.random() > 0.5) {
-                    shoot(enemy,false);
+                    shoot(enemy, false);
                 }
             }
         }
     }
-
     public void playerShoot(float dt) {
         if (_touching) {
             shoot(_player, true);
         }
     }
-
     public void shoot(Sprite plane, boolean is_player) {
         Sprite sprite = Sprite.sprite("bullet.png");
         int dir;
@@ -212,32 +271,33 @@ class EntitiesLayer extends Layer {
         float y = plane.getPositionY();
         sprite.setPosition(x, y);
         IntervalAction action = Sequence.actions(
-                MoveBy.action(4, 0, -_screen.height * dir)
+                MoveBy.action(4, 0, -_screen.height * dir),
+                CallFuncN.action(this, "endMyLife")
         );
         sprite.setScale(2);
         sprite.runAction(action);
         super.addChild(sprite);
     }
 
+    // Move player
     @Override
     public boolean ccTouchesBegan(MotionEvent event) {
         _touching = true;
         return super.ccTouchesBegan(event);
     }
-
     @Override
     public boolean ccTouchesMoved(MotionEvent event) {
-        _player.setPosition(event.getX(), this.getHeight() - event.getY());
+        _player.setPosition(event.getX(), getHeight() - event.getY());
 
         return super.ccTouchesMoved(event);
     }
-
     @Override
     public boolean ccTouchesEnded(MotionEvent event) {
         _touching = false;
         return super.ccTouchesEnded(event);
     }
 
+    // Spawners
     public void spawnSmall(float dt) {
         Sprite sprite = Sprite.sprite("enemy.png");
         sprite.setPosition((float) Math.random() * _screen.getWidth(), _screen.getHeight());
@@ -258,13 +318,30 @@ class EntitiesLayer extends Layer {
                 MoveTo.action(2, xtarget_2, _screen.getHeight() / 4 * 2),
                 MoveTo.action(2, xtarget_1, _screen.getHeight() / 4 * 1),
                 MoveTo.action(2, xtarget_2, 0),
-                MoveBy.action(0.5f, 0, -150)/*,
-                CallFuncN.action(this, "endMyLife")*/
+                MoveBy.action(0.5f, 0, -150),
+                CallFuncN.action(this, "endMyLife")
         );
 
         sprite.runAction(action);
         _enemies.add(sprite);
         super.addChild(sprite);
+    }
+
+    // Thanos
+    public void endMyLife(CocosNode node) {
+        if(_enemies.contains(node)) {
+            _enemies.remove(node);
+            Log.d("cleanup", "Remove enemy");
+        }
+        if(_enemy_bullets.contains(node)) {
+            _enemy_bullets.remove(node);
+            Log.d("cleanup", "Remove enemy bullet");
+        }
+        if(_player_bullets.contains(node)) {
+            _player_bullets.remove(node);
+            Log.d("cleanup", "Remove player bullet");
+        }
+        // I am sorry little one
     }
 
 }
