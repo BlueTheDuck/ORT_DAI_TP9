@@ -239,6 +239,7 @@ class EntitiesLayer extends Layer {
 
         _player.setPosition(screen.getWidth() / 2, screen.getHeight() / 2);
         _player.runAction(ScaleBy.action(0.1f, 3, 3));
+        _player.setZOrder(10);
 
         setIsTouchEnabled(true);
 
@@ -395,6 +396,7 @@ class EntitiesLayer extends Layer {
         Sprite sprite = Sprite.sprite("enemy.png");
         sprite.setPosition((float) Math.random() * _screen.getWidth(), _screen.getHeight());
         sprite.setScale(3);
+        sprite.setZOrder(10);
 
         // Go to the opposite side of the screen
         float xtarget_1, xtarget_2;
@@ -415,9 +417,9 @@ class EntitiesLayer extends Layer {
                 MoveBy.action(0.5f, 0, -150),
                 CallFuncN.action(this, "endMyLife")
         );
-
         sprite.runAction(action);
         _enemies.add(sprite);
+        
         super.addChild(sprite);
     }
 
