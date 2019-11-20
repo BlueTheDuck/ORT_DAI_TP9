@@ -1,9 +1,11 @@
 package com.ducklings_corp.tp9;
 
+import android.media.MediaPlayer;
 import android.util.Log;
 import android.view.MotionEvent;
 
 import org.cocos2d.actions.instant.CallFuncN;
+import org.cocos2d.actions.interval.Animate;
 import org.cocos2d.actions.interval.IntervalAction;
 import org.cocos2d.actions.interval.MoveBy;
 import org.cocos2d.actions.interval.MoveTo;
@@ -12,6 +14,7 @@ import org.cocos2d.actions.interval.Sequence;
 import org.cocos2d.layers.Layer;
 import org.cocos2d.menus.Menu;
 import org.cocos2d.menus.MenuItemImage;
+import org.cocos2d.nodes.Animation;
 import org.cocos2d.nodes.CocosNode;
 import org.cocos2d.nodes.Director;
 import org.cocos2d.nodes.Label;
@@ -27,15 +30,25 @@ public class Game {
     CCGLSurfaceView _gameView;
     CCSize _screen;
     int score = 0;
+    MediaPlayer _BGMusic;
+    MainLayer mainLayer;
 
     public Game(CCGLSurfaceView view) {
         Director.sharedDirector().attachInView(view);
         _gameView = view;
         _screen = Director.sharedDirector().displaySize();
+
         Log.d("Game", String.format("WxH %sx%s", Director.sharedDirector().displaySize().getWidth(), Director.sharedDirector().displaySize().getHeight()));
+
+        // Set background music
+        _BGMusic = MediaPlayer.create(Director.sharedDirector().getActivity(), R.raw.big_rock_by_kevin_macleod);
+        _BGMusic.setVolume(0.3f, 0.3f);
+        _BGMusic.setLooping(true);
+        _BGMusic.start();
     }
 
     void init() {
+        // Start game 
         Director.sharedDirector().attachInView(_gameView);
         startMenu(MenuLayer.Type.START);
     }
@@ -50,7 +63,7 @@ public class Game {
         score = 0;
         Scene returnScene = Scene.node();
 
-        MainLayer mainLayer = new MainLayer(_screen,this);
+        mainLayer = new MainLayer(_screen,this);
         returnScene.addChild(mainLayer, -1);
         EntitiesLayer entitiesLayer = new EntitiesLayer(_screen,this);
         returnScene.addChild(entitiesLayer, 1);
@@ -59,6 +72,12 @@ public class Game {
 
     public void endGame() {
         startMenu(MenuLayer.Type.END);
+    }
+
+    public void updateScore(int add) {
+        score += add;
+        Log.d("score","Setting score to "+score);
+        mainLayer.updateScore(score);
     }
 }
 
@@ -75,9 +94,9 @@ class MenuLayer extends Layer {
         _screen = screen;
         _game = game;
 
-        if (type ==Type.START){
+        if (type == Type.START){
             Sprite title = Sprite.sprite("1943.png");
-            Sprite bg = Sprite.sprite("bakrgaund.jpg");
+            Sprite bg = Sprite.sprite("background.png");
             MenuItemImage startButton = MenuItemImage.item("start.png", "start_2.png", this, "startGame");
             Menu menu = Menu.menu(startButton);
 
@@ -94,7 +113,6 @@ class MenuLayer extends Layer {
             super.addChild(menu);
             super.addChild(bg);
             super.addChild(title);
-
         } else if (type==Type.END){
             Sprite title = Sprite.sprite("1943.png");
             Sprite bg = Sprite.sprite("background.png");
@@ -138,7 +156,7 @@ class MainLayer extends Layer {
     Label _score_label;
 
     public MainLayer(CCSize screen,Game game) {
-        String score_str = "Score: ";
+        String score_str = "Score: 0";
         _screen = screen;
         _game = game;
         _score_label = Label.label(score_str,"Droid Sans Mono",50);
@@ -167,6 +185,7 @@ class MainLayer extends Layer {
         Log.d("createBg", String.format("sx %s sy %s", fWidth, fHeight));
         bg.setScaleX(fWidth);
         bg.setScaleY(fHeight);
+        bg.setZOrder(-100);
 
 
         CallFuncN sequenceCall = CallFuncN.action(this, "endScroll");
@@ -174,6 +193,12 @@ class MainLayer extends Layer {
         bg.runAction(scroll);
         super.addChild(bg);
 
+    }
+
+    public void updateScore(int score) {
+        String score_str = "Score: "+score;
+        _score_label.setString(score_str);
+        _score_label.setPosition(score_str.length()*15f,_screen.height-50f);
     }
 }
 
@@ -193,6 +218,8 @@ class EntitiesLayer extends Layer {
 
     private boolean _touching = false;
 
+    Animation blowUpAnimation;
+
     public EntitiesLayer(CCSize screen,Game game) {
         _screen = screen;
         _game = game;
@@ -201,6 +228,8 @@ class EntitiesLayer extends Layer {
         _player.runAction(ScaleBy.action(0.1f, 3, 3));
         super.addChild(_player);
         setIsTouchEnabled(true);
+
+        blowUpAnimation = new Animation("blowUp",0.2f,"exp/01.png","exp/02.png","exp/03.png","exp/04.png","exp/05.png");
 
         super.schedule("spawnSmall", 3);
         super.schedule("detectPlayerCol", 0.001f);
@@ -212,24 +241,42 @@ class EntitiesLayer extends Layer {
 
     // Collision detection
     public void detectEnemyCol(float dt) {
-        boolean has_collided = false;
-        for (CocosNode bullet : _player_bullets) {
-            for (CocosNode enemy : _enemies) {
+        ArrayList<Integer> remove_enemies = new ArrayList<>();
+        ArrayList<Integer> remove_bullets = new ArrayList<>();
+        for(int b = 0;b < _player_bullets.size();b++) {
+            CocosNode bullet = _player_bullets.get(b);
+            for(int e = 0;e < _enemies.size();e++) {
+                CocosNode enemy = _enemies.get(e);
+                if(enemy.getUserData()=="dying") {
+                    continue;
+                }
                 if (detectColWith(enemy, bullet, BULLET_PY + ENEMY_PY)) {
-                    has_collided = true;
-                    super.removeChild(enemy,true);
-                    _enemies.remove(enemy);
+                    enemy.setUserData("dying");
+                    remove_enemies.add(e);
+                    remove_bullets.add(b);
+                    bullet.setPosition(-1000,-1000);
                 }
             }
         }
-        if (has_collided) {
-            _game.score += 10;
-            if(_game.score > 200) {
-                shooting_speed = 0.2f;
-            }else if(_game.score > 100) {
-                shooting_speed = 0.4f;
-            }
+        for(int r = remove_enemies.size()-1;r >= 0; r--) {
+            IntervalAction action = Sequence.actions(
+                    CallFuncN.action(this,"playExplosionSound"),
+                    Animate.action(blowUpAnimation),
+                    CallFuncN.action(this,"endMyLife"));
+            _enemies.get(r).stopAllActions();
+            _enemies.get(r).runAction(action);
+            _game.updateScore(10);
             Log.d("detectCol", "Enemy died");
+        }
+        for(int r = remove_bullets.size()-1;r >= 0; r--) {
+            super.removeChild(_player_bullets.get(r),false);
+            _player_bullets.remove(r);
+            Log.d("detectCol", "Remove bullet that collided w/ enemy");
+        }
+        if(_game.score > 200) {
+            shooting_speed = 0.2f;
+        }else if(_game.score > 100) {
+            shooting_speed = 0.4f;
         }
     }
     public void detectPlayerCol(float dt) {
@@ -290,6 +337,7 @@ class EntitiesLayer extends Layer {
         } else {
             dir = 1;
             _enemy_bullets.add(sprite);
+            sprite.setRotation(180);
         }
         float x = plane.getPositionX();
         float y = plane.getPositionY();
@@ -365,7 +413,11 @@ class EntitiesLayer extends Layer {
             _player_bullets.remove(node);
             Log.d("cleanup", "Remove player bullet");
         }
+        super.removeChild(node,true);
         // I am sorry little one
     }
-
+    public void playExplosionSound(CocosNode node) {
+        MediaPlayer expPlayer = MediaPlayer.create(Director.sharedDirector().getActivity(), R.raw.explosion);
+        expPlayer.start();
+    }
 }
