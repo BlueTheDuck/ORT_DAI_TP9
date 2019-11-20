@@ -48,18 +48,20 @@ public class Game {
     }
 
     void init() {
-        // Start game 
+        // Start game
         Director.sharedDirector().attachInView(_gameView);
         startMenu(MenuLayer.Type.START);
     }
 
     private void startMenu(MenuLayer.Type type) {
+        Log.d("menu","Starting main menu");
         Scene returnScene = Scene.node();
         returnScene.addChild(new MenuLayer(_screen, this,type));
         Director.sharedDirector().runWithScene(returnScene);
     }
 
     public void startGame() {
+        Log.d("game","Starting game");
         score = 0;
         Scene returnScene = Scene.node();
 
@@ -71,6 +73,7 @@ public class Game {
     }
 
     public void endGame() {
+        Log.d("menu","Game ended");
         startMenu(MenuLayer.Type.END);
     }
 
@@ -95,6 +98,7 @@ class MenuLayer extends Layer {
         _game = game;
 
         if (type == Type.START){
+            Log.d("menu","Loading start menu");
             Sprite title = Sprite.sprite("1943.png");
             Sprite bg = Sprite.sprite("background.png");
             MenuItemImage startButton = MenuItemImage.item("start.png", "start_2.png", this, "startGame");
@@ -114,6 +118,7 @@ class MenuLayer extends Layer {
             super.addChild(bg);
             super.addChild(title);
         } else if (type==Type.END){
+            Log.d("menu","Loading end menu");
             Sprite title = Sprite.sprite("1943.png");
             Sprite bg = Sprite.sprite("background.png");
             Sprite go = Sprite.sprite("game_over.png");
@@ -145,6 +150,7 @@ class MenuLayer extends Layer {
 
     // On click button
     public void startGame() {
+        Log.d("game","Start game button pressed");
         _game.startGame();
     }
 }
@@ -157,21 +163,27 @@ class MainLayer extends Layer {
 
     public MainLayer(CCSize screen,Game game) {
         String score_str = "Score: 0";
+
         _screen = screen;
         _game = game;
         _score_label = Label.label(score_str,"Droid Sans Mono",50);
+
         createBg(0);
         createBg(1);
+
         _score_label.setPosition(score_str.length()*15f,_screen.height-50f);
+
         super.schedule("backgroundGen", SCROLL_SPEED / 2);
         super.addChild(_score_label);
     }
 
     public void backgroundGen(float dt) {
+        Log.d("game","Creating new background");
         createBg(1);
     }
 
     public void endScroll(CocosNode node) {
+        Log.d("game","Bg scrolled out of the screen");
         super.removeChild(node, true);
     }
 
@@ -224,13 +236,15 @@ class EntitiesLayer extends Layer {
         _screen = screen;
         _game = game;
         _player = Sprite.sprite("player.png");
+
         _player.setPosition(screen.getWidth() / 2, screen.getHeight() / 2);
         _player.runAction(ScaleBy.action(0.1f, 3, 3));
-        super.addChild(_player);
+
         setIsTouchEnabled(true);
 
         blowUpAnimation = new Animation("blowUp",0.2f,"exp/01.png","exp/02.png","exp/03.png","exp/04.png","exp/05.png");
 
+        super.addChild(_player);
         super.schedule("spawnSmall", 3);
         super.schedule("detectPlayerCol", 0.001f);
         super.schedule("detectEnemyCol", 0.001f);
@@ -248,9 +262,9 @@ class EntitiesLayer extends Layer {
             for(int e = 0;e < _enemies.size();e++) {
                 CocosNode enemy = _enemies.get(e);
                 if(enemy.getUserData()=="dying") {
-                    continue;
-                }
-                if (detectColWith(enemy, bullet, BULLET_PY + ENEMY_PY)) {
+                    Log.d("game","Collided with dying enemy");
+                } else if (detectColWith(enemy, bullet, BULLET_PY + ENEMY_PY)) {
+                    Log.d("game","Collided with enemy");
                     enemy.setUserData("dying");
                     remove_enemies.add(e);
                     remove_bullets.add(b);
@@ -259,6 +273,7 @@ class EntitiesLayer extends Layer {
             }
         }
         for(int r = remove_enemies.size()-1;r >= 0; r--) {
+            Log.d("game","Removing enemy "+r);
             IntervalAction action = Sequence.actions(
                     CallFuncN.action(this,"playExplosionSound"),
                     Animate.action(blowUpAnimation),
@@ -266,7 +281,6 @@ class EntitiesLayer extends Layer {
             _enemies.get(r).stopAllActions();
             _enemies.get(r).runAction(action);
             _game.updateScore(10);
-            Log.d("detectCol", "Enemy died");
         }
         for(int r = remove_bullets.size()-1;r >= 0; r--) {
             super.removeChild(_player_bullets.get(r),false);
@@ -275,8 +289,10 @@ class EntitiesLayer extends Layer {
         }
         if(_game.score > 200) {
             shooting_speed = 0.2f;
+            Log.d("game","Speeding up shooting speed");
         }else if(_game.score > 100) {
             shooting_speed = 0.4f;
+            Log.d("game","Speeding up shooting speed");
         }
     }
     public void detectPlayerCol(float dt) {
@@ -292,7 +308,7 @@ class EntitiesLayer extends Layer {
             }
         }
         if (has_collided) {
-            Log.d("detectCol", "Player died");
+            Log.d("game", "Player died");
             super.unschedule("spawnSmall");
             super.unschedule("detectPlayerCol");
             super.unschedule("detectEnemyCol");
@@ -302,12 +318,17 @@ class EntitiesLayer extends Layer {
         }
     }
     public boolean detectColWith(CocosNode a, CocosNode b, float req_dist) {
+        /*
+        * If the dist between 2 nodes is < req_dist, then they are colliding
+        * */
         float calc_dist = pythagoras(a, b);
-        // Log.d("detectColWith", String.format("%s %s",calc_dist,req_dist));
         return calc_dist < req_dist;
     }
 
     public float pythagoras(CocosNode a, CocosNode b) {
+        /*
+        * This function calcs the distance between 2 nodes
+        * */
         float dx = Math.abs(a.getPositionX() - b.getPositionX());
         float dy = Math.abs(a.getPositionY() - b.getPositionY());
         return (float) Math.sqrt(dx * dx + dy * dy);
@@ -374,8 +395,8 @@ class EntitiesLayer extends Layer {
         Sprite sprite = Sprite.sprite("enemy.png");
         sprite.setPosition((float) Math.random() * _screen.getWidth(), _screen.getHeight());
         sprite.setScale(3);
-        //sprite.runAction(ScaleBy.action(0.1f, 3, 3));
 
+        // Go to the opposite side of the screen
         float xtarget_1, xtarget_2;
         if (sprite.getPositionX() > _screen.getWidth() / 2) {
             xtarget_1 = 0;
@@ -385,6 +406,7 @@ class EntitiesLayer extends Layer {
 
         xtarget_2 = _screen.getWidth() - xtarget_1;
 
+        // Zig-zag
         IntervalAction action = Sequence.actions(
                 MoveTo.action(1, xtarget_1, _screen.getHeight() / 4 * 3),
                 MoveTo.action(2, xtarget_2, _screen.getHeight() / 4 * 2),
@@ -401,6 +423,7 @@ class EntitiesLayer extends Layer {
 
     // Thanos
     public void endMyLife(CocosNode node) {
+        // Remove entites outside of the screen
         if(_enemies.contains(node)) {
             _enemies.remove(node);
             Log.d("cleanup", "Remove enemy");
